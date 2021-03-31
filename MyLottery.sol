@@ -6,7 +6,7 @@ contract MyLottery {
 
     address[] private _currentDrawParticipants;
 
-    address public _owner;
+    address private _owner;
 
     uint public prizePool;
 
@@ -14,10 +14,11 @@ contract MyLottery {
     uint public idCurrentDraw = 0;
     uint public priceTicket;
 
+    
 
     constructor () { 
         _owner = msg.sender;
-        priceTicket = 1; 
+        priceTicket = 1 ether; 
     }
 
 
@@ -28,7 +29,7 @@ contract MyLottery {
 
 
     modifier onlyOwner() {
-        require(owner() == msg.sender, "Ownable: caller is not the owner");
+        require(owner() == msg.sender, "MyLottery: caller is not the owner");
         _;
     }
 
@@ -42,7 +43,7 @@ contract MyLottery {
     event OnTicketBought(uint idDraw, address participantAddress);
 
     function buyTicket() public payable returns (uint) {
-        require(msg.sender.balance >= priceTicket, "Insufficient Balance to buy a Ticket");
+        require(msg.value == priceTicket, "Msg Value is different from ticket price");
         
         prizePool += priceTicket;
         _currentDrawParticipants.push(msg.sender);
@@ -59,7 +60,7 @@ contract MyLottery {
 
     event OnDrawWinner(uint idDraw, address winnerAddress, uint sizePrizePool);
 
-    function drawWinner() public {
+    function drawWinner() public onlyOwner {
         uint idWinner = random(_currentDrawParticipants.length);
 
 
@@ -78,14 +79,13 @@ contract MyLottery {
 
     function getNbParticipants() public view returns (uint) {
         return _currentDrawParticipants.length;
-
+        
     }
 
 
 
-    function sendWinningsToAddress(address payable winnerAddress) private {
-        (bool sent, bytes memory data) = winnerAddress.call{value: prizePool}("");
-        require(sent, "Failed to send Ether");
+    function sendWinningsToAddress(address payable _to) private {
+        _to.transfer(prizePool - 1 ether);
 
     }
 
