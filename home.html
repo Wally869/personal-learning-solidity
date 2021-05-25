@@ -1,0 +1,262 @@
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+
+    <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+    <script src="http://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+
+
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+  </head>
+
+  <body> <!--</body> onload="showLoadingToastr()">-->
+    <button onclick="getBlockNumber()">Get Block Number</button>
+    
+    <button onclick="getNbParticipants()">Get Nb Participants</button>
+    <button onclick="showFinishedLoadingToastr()">Show Toast</button>
+    <button onclick="drawWinner()">Draw Winner</button>
+    <button onclick="addEventToList('testEvent')">add event</button>
+
+
+
+    <div id="contractData">
+      <div>
+        <p></p>
+      </div>
+    </div>
+
+
+    <div class="grid grid-cols-3 gap-4">
+      <div id="userData">
+        <p class="font-semibold">User Data</p>
+        <div>Address: <span id="userAddress">NA</span></div>
+        <div>Balance: <span id="userBalance">NA</span></div>
+        
+      </div>
+      <div>
+        <p class="font-semibold">Get Your Tickets Now!</p>
+        <button onclick="buyTicket()" class="border-4 rounded-2xl border-green-600 bg-green-800 text-white font-semibold p-2">Be a Winner, Buy a Ticket now!</br>CLICK HERE NOOOOOOW</button>
+      </div>
+      <div>
+        <p class="font-semibold">Recent Events</p>
+        <ul id="listEvents">
+          
+        </ul>
+      </div>
+
+    </div>
+  </body>
+
+  <script>
+    const PORT = 9545;
+    const USER_ADDRESS = "0xCC1D095BbDB3A0A022fDf61fA6051f76e9F6B44c";
+    const OWNER_ADDRESS = "0xCC1D095BbDB3A0A022fDf61fA6051f76e9F6B44c";
+    const PRIVATE_KEY =
+      "badadbfc23e6cace377da9b3c7301158b56b390320ac9a91e49b4d58790fad36";
+    const CONTRACT_ADDRESS = "0xe72DE56C81Ce099135B2B6A03EbeE50EFfF3ebB3";
+
+    //const web3 = new Web3("http://localhost:".concat(PORT.toString()));
+
+    const config = {
+      node: "127.0.0.1:9545",
+      address: CONTRACT_ADDRESS, // set to contract address
+    };
+
+    const provider = new Web3.providers.WebsocketProvider(
+      `ws://${config.node}`
+    );
+
+    const web3 = new Web3(provider);
+
+    web3.eth.defaultAccount = web3.eth.accounts[0];
+
+    function readTextFile(file) {
+      var rawFile = new XMLHttpRequest();
+      rawFile.open("GET", file, false);
+      rawFile.onreadystatechange = function () {
+        if (rawFile.readyState === 4) {
+          if (rawFile.status === 200 || rawFile.status == 0) {
+            var allText = rawFile.responseText;
+            //alert(allText);
+          }
+        }
+      };
+      rawFile.send(null);
+      //return rawFile.responseText;
+
+      return JSON.parse(rawFile.responseText);
+    }
+
+    // need abi
+    //var CoursetroContract = new web3.eth.Contract(JSON.parse(readTextFile("ABI/MyLottery.json")));
+    var jsonABI = readTextFile("ABI/MyLottery.json");
+    // CAREFUL: is not only ABI that was generated
+    var lotteryContract = new web3.eth.Contract(jsonABI.abi, CONTRACT_ADDRESS);
+
+        var subscription = web3.eth
+        .subscribe("newBlockHeaders", function (error, result) {
+            if (!error) {
+            console.log(result);
+
+            return;
+            }
+
+            console.error(error);
+        })
+        .on("connected", function (subscriptionId) {
+            console.log("New Subscription: " + subscriptionId);
+            UpdatePortfolioDisplay();
+        })
+        .on("data", function (blockHeader) {
+            console.log("new block received");
+            UpdatePortfolioDisplay();
+        });
+    
+    function UpdatePortfolioDisplay() {
+        web3.eth.getBalance(USER_ADDRESS).then((value) => {
+            let val = String(value);
+            val = val.padStart("0", 18);
+            document.getElementById("userBalance").innerText = val.slice(0, 1) + "." + val.slice(1, 5) + " ETH";
+        })
+        
+
+    }
+
+    /*
+    lotteryContract.events.allEvents(function (err, event) {
+      if (err) {
+        console.error("Error", err);
+        process.exit(1);
+      }
+
+      addEventToList(event.event);
+      console.log("Event", event);
+    });
+    */
+
+    lotteryContract.events.OnTicketBought({}).on("data", async function(event) {
+    console.log("New Ticket Bought by: " + event.returnValues.participantAddress)
+
+    addEventToList(event.event);
+});
+
+lotteryContract.events.OnDrawWinner({}).on("data", async function(event) {
+    console.log("Drawn Winner: " + event.returnValues.winnerAddress)
+
+    addEventToList(event.event);
+});
+
+    //const lotteryContract =
+
+    document.getElementById("userAddress").innerText = USER_ADDRESS.slice(
+      0,
+      10
+    ).concat("...");
+
+    function getBlockNumber() {
+      web3.eth.getBlockNumber(function (error, result) {
+        console.log(result);
+      });
+
+      //return result;
+    }
+
+    function getNbParticipants() {
+      lotteryContract.methods
+        .getNbParticipants()
+        .call({ from: USER_ADDRESS })
+        .then(console.log);
+    }
+
+    function getTicketPrice() {
+      lotteryContract.methods
+        .priceTicket()
+        .call({ from: USER_ADDRESS })
+        .then(console.log);
+    }
+
+    function buyTicket() {
+      lotteryContract.methods
+        .buyTicket()
+        .send({ from: USER_ADDRESS, value: 1000000000000000000 });
+      showTicketBoughtNotification();
+    }
+
+    function drawWinner() {
+      lotteryContract.methods
+        .drawWinner()
+        .send({ from: OWNER_ADDRESS});
+
+    }
+
+    
+    var eventNames = [];
+    async function addEventToList(eventName) {
+      var temp = [eventName];
+      for (var i = 0; i < eventNames.length; i++) {
+        if (temp.length < 10) {
+          temp.push(eventNames[i]);
+
+        }
+      }
+
+      var eventsElement = document.getElementById('listEvents');
+      eventsElement.innerHTML = "";
+
+
+      for (var i = 0; i < temp.length; i++) {
+        var node = document.createElement("li");
+        node.appendChild(document.createTextNode(eventNames[i]));
+        eventsElement.appendChild(node);
+      }
+
+      eventNames = temp;
+
+    }
+
+
+    // toastr stuff
+    toastr.options = {
+      closeButton: true,
+      debug: false,
+      newestOnTop: false,
+      progressBar: false,
+      positionClass: "toast-bottom-right",
+      preventDuplicates: false,
+      onclick: null,
+      showDuration: "300",
+      hideDuration: "1000",
+      timeOut: "5000",
+      extendedTimeOut: "1000",
+      showEasing: "swing",
+      hideEasing: "linear",
+      showMethod: "fadeIn",
+      hideMethod: "fadeOut",
+    };
+
+    function showLoadingToastr() {
+      toastr.info("Getting Contract Information...");
+    }
+
+    function showFinishedLoadingToastr() {
+      toastr.success("Contract Data Loaded Successfully!");
+    }
+
+    function showTicketBoughtNotification() {
+      //toastr.success("Ticket Bought Successfully!");
+      toastr.success("Thanks for buying a ticket, Chadman!");
+    }
+  </script>
+
+  <style>
+    #toast-container > .toast {
+      width: 400px; /* width: 100% */
+    }
+  </style>
+</html>
